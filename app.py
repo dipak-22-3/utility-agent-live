@@ -1,180 +1,192 @@
-# NOTE: This is a FULL replacement app.py
-# Paste this entire file and deploy on Streamlit Cloud
-
 import streamlit as st
-import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime
 
-# ================================
+# ==============================
 # PAGE CONFIG
-# ================================
+# ==============================
 st.set_page_config(
-    page_title="Agentic Command Center",
+    page_title="Agentic Decision Command Center",
     page_icon="🧠",
     layout="wide"
 )
 
-# ================================
-# GLOBAL THEME (Dark, Futuristic)
-# ================================
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"] {
-        background-color: #020617;
-        color: white;
-        font-family: 'Inter', sans-serif;
-    }
-    .glass {
-        background: rgba(255,255,255,0.05);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 16px;
-    }
-    .glow {
-        box-shadow: 0 0 20px rgba(139,92,246,0.3);
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# ==============================
+# GLOBAL DARK UI (GLASS)
+# ==============================
+st.markdown("""
+<style>
+html, body, [class*="css"] {
+  background-color:#020617;
+  color:white;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.glass {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 16px;
+}
+.glow { box-shadow: 0 0 20px rgba(139,92,246,0.35); }
+.badge {
+  padding: 4px 10px; border-radius: 999px; font-size: 12px;
+}
+.good { background:#10b98133; color:#10b981; }
+.warn { background:#f59e0b33; color:#f59e0b; }
+.danger { background:#ef444433; color:#ef4444; }
+</style>
+""", unsafe_allow_html=True)
 
-# ================================
+# ==============================
 # SESSION STATE
-# ================================
+# ==============================
 if "tasks" not in st.session_state:
     st.session_state.tasks = []
 
-if "weights" not in st.session_state:
-    st.session_state.weights = {
-        "impact": 1.0,
-        "urgency": 1.0,
-        "effort": 1.0,
-        "risk": 1.0
+# ==============================
+# KEYWORD INTELLIGENCE (AUTO-INFER)
+# ==============================
+LIFE_WORDS = ["save", "life", "oxygen", "doctor", "hospital", "emergency", "accident"]
+MEDICAL_WORDS = ["doctor", "medicine", "hospital", "treatment", "surgery"]
+PLEASURE_WORDS = ["sex", "intercourse", "party", "fun", "entertainment"]
+WORK_WORDS = ["deploy", "bug", "server", "client", "deadline", "meeting"]
+
+def infer_values(task: str):
+    t = task.lower()
+
+    # defaults
+    urgency, impact, effort, risk = 5, 5, 5, 5
+    critical = False
+    category = "Personal"
+
+    if any(w in t for w in LIFE_WORDS):
+        urgency, impact, risk = 9, 10, 9
+        effort = 4
+        critical = True
+        category = "Life"
+
+    if any(w in t for w in MEDICAL_WORDS):
+        urgency = max(urgency, 8)
+        impact = max(impact, 9)
+        risk = max(risk, 8)
+        effort = min(effort, 4)
+        critical = True
+        category = "Life"
+
+    if any(w in t for w in WORK_WORDS):
+        urgency = max(urgency, 7)
+        impact = max(impact, 7)
+        effort = 6
+        risk = 5
+        category = "Work"
+
+    if any(w in t for w in PLEASURE_WORDS):
+        urgency, impact, effort, risk = 3, 3, 2, 2
+        critical = False
+        category = "Personal"
+
+    return {
+        "urgency": urgency,
+        "impact": impact,
+        "effort": effort,
+        "risk": risk,
+        "critical": critical,
+        "category": category
     }
 
-# ================================
-# UTILITY FUNCTION (SAFETY AWARE)
-# ================================
-def calculate_utility(task):
-    w = st.session_state.weights
-    base = (
-        (w['impact'] * task['impact'] + w['urgency'] * task['urgency']) /
-        (w['effort'] * task['effort'] + w['risk'] * task['risk'])
+# ==============================
+# UTILITY (CONSTRAINT-AWARE)
+# ==============================
+def utility(v):
+    base = (v["impact"] * v["urgency"]) / (v["effort"] + v["risk"])
+    return round(base * 5, 2) if v["critical"] else round(base * 0.4, 2)
+
+# ==============================
+# HEADER
+# ==============================
+st.markdown("<div class='glass glow'><h2>🧠 Agentic Decision Command Center</h2>"
+            "<p>Type one task. Agent decides everything.</p></div>",
+            unsafe_allow_html=True)
+
+st.write("")
+
+# ==============================
+# INPUT (ONLY ONE)
+# ==============================
+col_in, col_out = st.columns([1.2, 2.8])
+
+with col_in:
+    st.markdown("<div class='glass'><b>➕ Add Task (Natural Language)</b></div>", unsafe_allow_html=True)
+    task_text = st.text_area(
+        "Describe the task",
+        placeholder="e.g. meet with doctor to save my life",
+        height=120
     )
-    return round(base * 5 if task['critical'] else base * 0.4, 2)
-
-# ================================
-# SIDEBAR
-# ================================
-with st.sidebar:
-    st.markdown("<div class='glass glow'>🧠 <b>Agentic Command Center</b></div>", unsafe_allow_html=True)
-    st.markdown("---")
-    st.caption("Utility-Based • Constraint-Aware • Adaptive")
-
-    st.markdown("### ⚙ Agent Weights")
-    for k in st.session_state.weights:
-        st.session_state.weights[k] = st.slider(
-            k.capitalize(), 0.5, 2.0, st.session_state.weights[k], 0.1
-        )
-
-# ================================
-# MAIN LAYOUT
-# ================================
-col_left, col_right = st.columns([1.2, 2.8])
-
-# ================================
-# TASK INPUT PANEL
-# ================================
-with col_left:
-    st.markdown("<div class='glass'>➕ <b>Add New Task</b></div>", unsafe_allow_html=True)
-
-    name = st.text_input("Task Name")
-    category = st.selectbox("Category", ["Life", "Work", "Personal"])
-    critical = st.toggle("Life Critical")
-
-    urgency = st.slider("Urgency", 1, 10, 5)
-    impact = st.slider("Impact", 1, 10, 5)
-    effort = st.slider("Effort", 1, 10, 5)
-    risk = st.slider("Risk", 1, 10, 5)
-
-    if st.button("➕ Add Task", use_container_width=True):
-        if name:
+    if st.button("Run Agent", use_container_width=True):
+        if task_text.strip():
+            inferred = infer_values(task_text)
+            score = utility(inferred)
             st.session_state.tasks.append({
-                "name": name,
-                "category": category,
-                "critical": critical,
-                "urgency": urgency,
-                "impact": impact,
-                "effort": effort,
-                "risk": risk,
+                "task": task_text,
+                "inferred": inferred,
+                "utility": score,
                 "time": datetime.now().strftime("%H:%M:%S")
             })
-            st.success("Task added")
+            st.success("Task analyzed by agent")
+        else:
+            st.warning("Please type a task")
 
-# ================================
-# DECISION ENGINE + DASHBOARD
-# ================================
-with col_right:
-    st.markdown("<div class='glass glow'>📊 <b>Decision Dashboard</b></div>", unsafe_allow_html=True)
+# ==============================
+# DASHBOARD
+# ==============================
+with col_out:
+    st.markdown("<div class='glass glow'><b>📊 Decision Dashboard</b></div>", unsafe_allow_html=True)
 
     if st.session_state.tasks:
-        evaluated = []
-        for t in st.session_state.tasks:
-            t['utility'] = calculate_utility(t)
-            evaluated.append(t)
+        # sort by utility
+        data = sorted(st.session_state.tasks, key=lambda x: x["utility"], reverse=True)
+        top = data[0]
 
-        evaluated.sort(key=lambda x: x['utility'], reverse=True)
-        top = evaluated[0]
+        badge = "danger" if top["inferred"]["critical"] else "good"
 
-        st.markdown(
-            f"""
-            <div class='glass glow'>
-            <h2>✅ Do First: {top['name']}</h2>
-            <p>Utility Score: <b>{top['utility']}</b></p>
-            <p>Critical: {top['critical']} | Category: {top['category']}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.markdown(f"""
+        <div class='glass glow'>
+          <h3>✅ DO FIRST</h3>
+          <h2>{top["task"]}</h2>
+          <span class="badge {badge}">
+            {"LIFE-CRITICAL" if top["inferred"]["critical"] else "NON-CRITICAL"}
+          </span>
+          <p><b>Utility:</b> {top["utility"]}</p>
+          <p><b>Category:</b> {top["inferred"]["category"]}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("### 🧠 Agent Explanation")
+        st.info(
+            f"Urgency {top['inferred']['urgency']} and impact {top['inferred']['impact']} "
+            f"were inferred from language. Safety constraints applied."
         )
 
-        # Utility Chart
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=[t['name'] for t in evaluated],
-            y=[t['utility'] for t in evaluated],
-            marker_color="#8b5cf6"
-        ))
-        fig.update_layout(
-            template="plotly_dark",
-            height=320,
-            margin=dict(l=20, r=20, t=40, b=20)
+        # Chart
+        fig = px.bar(
+            data,
+            x=[d["task"] for d in data],
+            y=[d["utility"] for d in data],
+            color=[d["inferred"]["category"] for d in data],
+            labels={"x":"Task","y":"Utility"},
+            title="Utility Comparison"
         )
+        fig.update_layout(template="plotly_dark", height=300)
         st.plotly_chart(fig, use_container_width=True)
 
-        # Task List
-        st.markdown("### 🗂 Task List")
-        for i, t in enumerate(st.session_state.tasks):
-            with st.expander(f"{t['name']}  | Utility: {t['utility']}"):
-                st.json(t)
-                if st.button(f"❌ Delete {t['name']}", key=i):
-                    st.session_state.tasks.pop(i)
+        st.markdown("### 🗂 History")
+        for i, d in enumerate(data):
+            with st.expander(f"{i+1}. {d['task']}  |  Utility {d['utility']}"):
+                st.json(d)
+                if st.button("Delete", key=f"del{i}"):
+                    st.session_state.tasks.remove(d)
                     st.experimental_rerun()
-
-        # Learning Feedback
-        st.markdown("### 🔁 Agent Learning")
-        c1, c2 = st.columns(2)
-        if c1.button("👍 Good Decision", use_container_width=True):
-            st.session_state.weights['impact'] += 0.1
-            st.session_state.weights['urgency'] += 0.1
-            st.success("Agent reinforced positive factors")
-
-        if c2.button("👎 Bad Decision", use_container_width=True):
-            st.session_state.weights['effort'] += 0.1
-            st.session_state.weights['risk'] += 0.1
-            st.warning("Agent penalized effort & risk")
-
     else:
-        st.info("Add tasks to activate agent")
-            
+        st.info("No tasks yet. Type one task and run the agent.")
+        
