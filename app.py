@@ -30,7 +30,9 @@ html, body, [class*="css"] {
 }
 .glow { box-shadow: 0 0 20px rgba(139,92,246,0.35); }
 .badge {
-  padding: 4px 10px; border-radius: 999px; font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
 }
 .good { background:#10b98133; color:#10b981; }
 .warn { background:#f59e0b33; color:#f59e0b; }
@@ -39,7 +41,7 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 
 # ==============================
-# SESSION STATE
+# SESSION STATE (SAFE INIT)
 # ==============================
 if "tasks" not in st.session_state:
     st.session_state.tasks = []
@@ -96,43 +98,55 @@ def infer_values(task: str):
     }
 
 # ==============================
-# UTILITY (CONSTRAINT-AWARE)
+# UTILITY FUNCTION (CONSTRAINT-AWARE)
 # ==============================
-def utility(v):
+def calculate_utility(v):
     base = (v["impact"] * v["urgency"]) / (v["effort"] + v["risk"])
     return round(base * 5, 2) if v["critical"] else round(base * 0.4, 2)
 
 # ==============================
 # HEADER
 # ==============================
-st.markdown("<div class='glass glow'><h2>🧠 Agentic Decision Command Center</h2>"
-            "<p>Type one task. Agent decides everything.</p></div>",
-            unsafe_allow_html=True)
+st.markdown(
+    "<div class='glass glow'><h2>🧠 Agentic Decision Command Center</h2>"
+    "<p>Type one task. Agent infers everything.</p></div>",
+    unsafe_allow_html=True
+)
 
 st.write("")
 
 # ==============================
-# INPUT (ONLY ONE)
+# LAYOUT
 # ==============================
 col_in, col_out = st.columns([1.2, 2.8])
 
+# ==============================
+# INPUT (ONE TEXT ONLY)
+# ==============================
 with col_in:
-    st.markdown("<div class='glass'><b>➕ Add Task (Natural Language)</b></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='glass'><b>➕ Add Task (Natural Language)</b></div>",
+        unsafe_allow_html=True
+    )
+
     task_text = st.text_area(
         "Describe the task",
         placeholder="e.g. meet with doctor to save my life",
         height=120
     )
+
     if st.button("Run Agent", use_container_width=True):
         if task_text.strip():
             inferred = infer_values(task_text)
-            score = utility(inferred)
+            score = calculate_utility(inferred)
+
             st.session_state.tasks.append({
                 "task": task_text,
                 "inferred": inferred,
                 "utility": score,
                 "time": datetime.now().strftime("%H:%M:%S")
             })
+
             st.success("Task analyzed by agent")
         else:
             st.warning("Please type a task")
@@ -141,48 +155,59 @@ with col_in:
 # DASHBOARD
 # ==============================
 with col_out:
-    st.markdown("<div class='glass glow'><b>📊 Decision Dashboard</b></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='glass glow'><b>📊 Decision Dashboard</b></div>",
+        unsafe_allow_html=True
+    )
 
     if st.session_state.tasks:
         # sort by utility
-        data = sorted(st.session_state.tasks, key=lambda x: x["utility"], reverse=True)
-        top = data[0]
+        data = sorted(
+            st.session_state.tasks,
+            key=lambda x: x.get("utility", 0),
+            reverse=True
+        )
 
-        badge = "danger" if top["inferred"]["critical"] else "good"
+        top = data[0]
+        inferred = top.get("inferred", {})
+
+        # SAFE BADGE
+        badge = "danger" if inferred.get("critical", False) else "good"
 
         st.markdown(f"""
         <div class='glass glow'>
           <h3>✅ DO FIRST</h3>
-          <h2>{top["task"]}</h2>
+          <h2>{top.get("task","")}</h2>
           <span class="badge {badge}">
-            {"LIFE-CRITICAL" if top["inferred"]["critical"] else "NON-CRITICAL"}
+            {"LIFE-CRITICAL" if inferred.get("critical", False) else "NON-CRITICAL"}
           </span>
-          <p><b>Utility:</b> {top["utility"]}</p>
-          <p><b>Category:</b> {top["inferred"]["category"]}</p>
+          <p><b>Utility:</b> {top.get("utility","?")}</p>
+          <p><b>Category:</b> {inferred.get("category","Unknown")}</p>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown("### 🧠 Agent Explanation")
         st.info(
-            f"Urgency {top['inferred']['urgency']} and impact {top['inferred']['impact']} "
+            f"Urgency {inferred.get('urgency','?')} and impact {inferred.get('impact','?')} "
             f"were inferred from language. Safety constraints applied."
         )
 
-        # Chart
+        # CHART
         fig = px.bar(
             data,
-            x=[d["task"] for d in data],
-            y=[d["utility"] for d in data],
-            color=[d["inferred"]["category"] for d in data],
+            x=[d.get("task","") for d in data],
+            y=[d.get("utility",0) for d in data],
+            color=[d.get("inferred",{}).get("category","Unknown") for d in data],
             labels={"x":"Task","y":"Utility"},
             title="Utility Comparison"
         )
         fig.update_layout(template="plotly_dark", height=300)
         st.plotly_chart(fig, use_container_width=True)
 
+        # HISTORY
         st.markdown("### 🗂 History")
         for i, d in enumerate(data):
-            with st.expander(f"{i+1}. {d['task']}  |  Utility {d['utility']}"):
+            with st.expander(f"{i+1}. {d.get('task','')} | Utility {d.get('utility','?')}"):
                 st.json(d)
                 if st.button("Delete", key=f"del{i}"):
                     st.session_state.tasks.remove(d)
