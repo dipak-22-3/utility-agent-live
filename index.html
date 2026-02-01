@@ -1,0 +1,12 @@
+<script src="agent.js"></script>
+<script>
+const tasks = [
+  { name: "Fix login bug", urgency: 9, impact: 10, effort: 4, risk: 8 },
+  { name: "Write docs", urgency: 3, impact: 4, effort: 5, risk: 2 },
+  { name: "Optimize DB", urgency: 6, impact: 8, effort: 7, risk: 6 }
+];
+
+const result = runAgent(tasks);
+console.log(result);
+</script>
+
