@@ -1,27 +1,14 @@
-# Utility-Based Decision Agent (Live)
+# Agentic Decision Intelligence System
 
-This project implements a **utility-based agentic AI system**
-that prioritizes tasks based on impact, urgency, effort, and risk.
-
-## Agent Type
-- Utility-Based Agent
-- Goal-Based Agent
-- Explainable Decision System
-
-## Utility Formula
-Utility = (Impact × Urgency) / (Effort + Risk)
+A production-ready utility-based AI agent that makes explainable decisions,
+learns from feedback, and runs as a live web app.
 
 ## Features
-- Live deployed via GitHub Pages
-- Client-side agent (no backend)
-- Explainable decisions
-- Persistent memory (localStorage)
+- Utility-based decision making
+- Adaptive learning
+- Visual decision analytics
+- Explainable AI
 - Zero cost
 
-## Use Case
-- Task prioritization
-- Incident management
-- Decision intelligence systems
-
-## Deployment
-Hosted using GitHub Pages.
+## Run
+streamlit run app.py
